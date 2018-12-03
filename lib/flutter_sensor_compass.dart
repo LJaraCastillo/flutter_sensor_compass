@@ -13,7 +13,8 @@ class Compass {
   ///Returns a stream to receive the compass updates.
   ///
   ///Remember to close the stream after using it.
-  static Stream<double> compasUpdates() => _compass.getCompassStream;
+  static Stream<double> compassUpdates(Duration delay) =>
+      _compass.compassUpdates(delay);
 
   /// Checks if the sensors needed for the compass to work are available.
   ///
