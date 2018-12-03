@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'dart:async';
 
-import 'package:flutter/services.dart';
 import 'package:flutter_sensor_compass/flutter_sensor_compass.dart';
 
 void main() => runApp(MyApp());
@@ -39,7 +38,7 @@ class _MyAppState extends State<MyApp> {
   void _startCompass() {
     if (_compassSubscription != null) return;
     _compassSubscription =
-        Compass.compassUpdates(Duration(milliseconds: 250)).listen((value) {
+        Compass.compassUpdates(Duration(milliseconds: 1)).listen((value) {
       setState(() {
         _degrees = value;
       });

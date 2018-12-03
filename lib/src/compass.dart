@@ -56,9 +56,9 @@ class _Compass {
   void _startSensors() {
     _sensorStream = SensorManager.sensorsUpdates([
       SensorRequest(Sensors.ACCELEROMETER,
-          refreshDelay: Sensors.SENSOR_DELAY_FASTEST),
+          refreshDelay: Sensors.SENSOR_DELAY_GAME),
       SensorRequest(Sensors.MAGNETIC_FIELD,
-          refreshDelay: Sensors.SENSOR_DELAY_FASTEST),
+          refreshDelay: Sensors.SENSOR_DELAY_GAME),
     ]).listen((event) {
       switch (event.sensor) {
         case Sensors.ACCELEROMETER:
