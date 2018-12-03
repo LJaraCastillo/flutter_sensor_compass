@@ -17,14 +17,18 @@ class _Compass {
     _CompassStreamSubscription compassStreamSubscription;
     StreamSubscription<double> compassSubscription =
         _internalUpdateController.stream.listen((value) {
-      DateTime instant = DateTime.now();
-      int difference = instant
-          .difference(compassStreamSubscription.lastUpdated)
-          .inMicroseconds;
-      if (difference >= delay.inMicroseconds) {
-        compassStreamSubscription.lastUpdated = instant;
-        compassStreamController.add(value);
+      if (delay != null) {
+        DateTime instant = DateTime.now();
+        int difference = instant
+            .difference(compassStreamSubscription.lastUpdated)
+            .inMicroseconds;
+        if (difference < delay.inMicroseconds) {
+          return;
+        } else {
+          compassStreamSubscription.lastUpdated = instant;
+        }
       }
+      compassStreamController.add(value);
     });
     compassSubscription.onDone(() {
       _updatesSubscriptions.remove(compassStreamSubscription);
