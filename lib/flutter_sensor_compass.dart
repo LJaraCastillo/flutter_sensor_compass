@@ -1,9 +1,11 @@
 library flutter_sensor_compass;
 
 import 'dart:async';
+import 'dart:io';
 import 'dart:math';
-import 'package:vector_math/vector_math.dart';
+
 import 'package:flutter_sensors/flutter_sensors.dart';
+import 'package:vector_math/vector_math.dart';
 
 part 'src/compass.dart';
 
@@ -13,11 +15,13 @@ class Compass {
   ///Returns a stream to receive the compass updates.
   ///
   ///Remember to close the stream after using it.
-  static Stream<double> compassUpdates({Duration delay}) =>
-      _compass.compassUpdates(delay);
+  static Stream<double> compassUpdates({Duration delay, double azimuthFix}) =>
+      _compass.compassUpdates(delay, azimuthFix);
 
   /// Checks if the sensors needed for the compass to work are available.
   ///
   /// Returns true if the sensors are available or false otherwise.
-  static Future<bool> isCompassAvailable() => _Compass.checkAviability;
+  static Future<bool> isCompassAvailable() => _Compass.isCompassAvailable;
+
+  static void setAzimuthFix(double fix) => _compass.azimuthFix = fix;
 }
