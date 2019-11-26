@@ -12,6 +12,7 @@ class _Compass {
   /// Starts the compass updates.
   Stream<double> compassUpdates(Duration interval, double azimuthFix) {
     this.azimuthFix = azimuthFix ?? this.azimuthFix;
+    // ignore: close_sinks
     StreamController<double> compassStreamController;
     _CompassStreamSubscription compassStreamSubscription;
     // ignore: cancel_subscriptions
@@ -37,39 +38,33 @@ class _Compass {
     _updatesSubscriptions.add(compassStreamSubscription);
     compassStreamController = StreamController<double>.broadcast(
       onListen: () {
-        if (_sensorsStarted()) return;
-        _startSensors();
+        if (_sensorStarted()) return;
+        _startSensor();
       },
       onCancel: () {
         compassStreamSubscription.subscription.cancel();
         _updatesSubscriptions.remove(compassStreamSubscription);
-        if (_updatesSubscriptions.isEmpty) _stopSensors();
+        if (_updatesSubscriptions.isEmpty) _stopSensor();
       },
     );
     return compassStreamController.stream;
   }
 
-  /// Checks if is possible to use the compass in the device.
-  static Future<bool> get isCompassAvailable async {
-    bool advanced = await isAdvancedSensorAvailable;
-    return advanced;
-  }
-
   /// Checks if the rotation sensor is available in the system.
-  static Future<bool> get isAdvancedSensorAvailable async {
+  static Future<bool> get isCompassAvailable async {
     return SensorManager().isSensorAvailable(Sensors.ROTATION);
   }
 
   /// Determines which sensor is available and starts the updates if possible.
-  void _startSensors() async {
-    bool advanced = await isAdvancedSensorAvailable;
-    if (!advanced) {
-      _startAdvancedSensor();
+  void _startSensor() async {
+    bool isAvailable = await isCompassAvailable;
+    if (isAvailable) {
+      _startRotationSensor();
     }
   }
 
   /// Starts the rotation sensor for each platform.
-  void _startAdvancedSensor() async {
+  void _startRotationSensor() async {
     final stream = await SensorManager().sensorUpdates(
       sensorId: Sensors.ROTATION,
       interval: Sensors.SENSOR_DELAY_UI,
@@ -88,13 +83,13 @@ class _Compass {
   }
 
   /// Checks if the sensors has been started.
-  bool _sensorsStarted() {
+  bool _sensorStarted() {
     return _rotationSensorStream != null;
   }
 
   /// Stops the sensors updates subscribed.
-  void _stopSensors() {
-    if (_rotationSensorStream != null) {
+  void _stopSensor() {
+    if (_sensorStarted()) {
       _rotationSensorStream.cancel();
       _rotationSensorStream = null;
     }
@@ -147,12 +142,6 @@ class _Compass {
     orientation[1] = asin(-_rotationMatrix[7]);
     orientation[2] = atan2(-_rotationMatrix[6], _rotationMatrix[8]);
     return orientation;
-  }
-
-  /// Transform acceleration in Gravitational Force (G) to
-  /// metre/(square seconds).
-  double _gravitationalForceToMS2(double gForce) {
-    return gForce / 0.101971621297793;
   }
 }
 

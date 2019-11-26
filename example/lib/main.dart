@@ -28,7 +28,7 @@ class _MyAppState extends State<MyApp> {
   }
 
   void _checkCompassAvailability() async {
-    Compass.isCompassAvailable().then((value) {
+    Compass().isCompassAvailable().then((value) {
       setState(() {
         _compassEnabled = value;
       });
@@ -38,7 +38,7 @@ class _MyAppState extends State<MyApp> {
   void _startCompass() {
     if (_compassSubscription != null) return;
     _compassSubscription =
-        Compass.compassUpdates(interval: Duration(milliseconds: 200)).listen((value) {
+        Compass().compassUpdates(interval: Duration(milliseconds: 200)).listen((value) {
       setState(() {
         _degrees = value;
       });
