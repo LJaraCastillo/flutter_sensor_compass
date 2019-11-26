@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.1.1
+
+* Updated Android dependencies
+
 ## 0.1.0
 
 * Compass stream to receive compass updates.

@@ -10,7 +10,7 @@ Copy the following line below dependencies in your **pubspec.yaml** file.
 ```yaml
 dependencies:
      ...
-    flutter_sensor_compass: ^0.1.0
+    flutter_sensor_compass: ^0.1.1
 ```
 
 Then you need to import the dependency.
