@@ -1,14 +1,10 @@
 part of flutter_sensor_compass;
 
 class _Compass {
-  List<double> _gravity = List.filled(3, 0.0);
-  List<double> _geomagnetic = List.filled(3, 0.0);
   List<double> _rotationMatrix = List.filled(9, 0.0);
   double _azimuth = 0.0;
   double azimuthFix = 0.0;
   final List<_CompassStreamSubscription> _updatesSubscriptions = [];
-  StreamSubscription<SensorEvent> _accelerometerStream;
-  StreamSubscription<SensorEvent> _magneticFieldStream;
   StreamSubscription<SensorEvent> _rotationSensorStream;
   StreamController<double> _internalUpdateController =
       StreamController.broadcast();
@@ -56,8 +52,7 @@ class _Compass {
   /// Checks if is possible to use the compass in the device.
   static Future<bool> get isCompassAvailable async {
     bool advanced = await isAdvancedSensorAvailable;
-    bool def = await isDefaultSensorsAvailable;
-    return advanced || def;
+    return advanced;
   }
 
   /// Checks if the rotation sensor is available in the system.
@@ -65,24 +60,11 @@ class _Compass {
     return SensorManager().isSensorAvailable(Sensors.ROTATION);
   }
 
-  /// Checks if the defaults sensors used to compute the azimuth are available
-  /// in the system.
-  static Future<bool> get isDefaultSensorsAvailable async {
-    bool accelerometer =
-        await SensorManager().isSensorAvailable(Sensors.LINEAR_ACCELERATION);
-    bool magneticField =
-        await SensorManager().isSensorAvailable(Sensors.MAGNETIC_FIELD);
-    return accelerometer && magneticField;
-  }
-
   /// Determines which sensor is available and starts the updates if possible.
   void _startSensors() async {
     bool advanced = await isAdvancedSensorAvailable;
-    bool def = await isDefaultSensorsAvailable;
-    if (advanced) {
+    if (!advanced) {
       _startAdvancedSensor();
-    } else if (def) {
-      _startDefaultSensors();
     }
   }
 
@@ -105,96 +87,17 @@ class _Compass {
     });
   }
 
-  /// Starts the default sensors used to compute the azimuth.
-  void _startDefaultSensors() async {
-    final accelerometerStream = await SensorManager().sensorUpdates(
-      sensorId: Sensors.LINEAR_ACCELERATION,
-      interval: Sensors.SENSOR_DELAY_UI,
-    );
-    final magneticFieldStream = await SensorManager().sensorUpdates(
-      sensorId: Sensors.MAGNETIC_FIELD,
-      interval: Sensors.SENSOR_DELAY_UI,
-    );
-    _accelerometerStream = accelerometerStream.listen(_defaultSensorsCallback);
-    _magneticFieldStream = magneticFieldStream.listen(_defaultSensorsCallback);
-  }
-
-  /// Callback for the default sensor (accelerometer & magnetic field)
-  /// used to compute the azimuth.
-  void _defaultSensorsCallback(SensorEvent event) {
-    switch (event.sensorId) {
-      case Sensors.LINEAR_ACCELERATION:
-        _gravity[0] = Platform.isAndroid
-            ? event.data[0]
-            : _gravitationalForceToMS2(event.data[0]);
-        _gravity[1] = Platform.isAndroid
-            ? event.data[1]
-            : _gravitationalForceToMS2(event.data[1]);
-        _gravity[2] = Platform.isAndroid
-            ? event.data[2]
-            : _gravitationalForceToMS2(event.data[2]);
-        break;
-      case Sensors.MAGNETIC_FIELD:
-        _geomagnetic[0] = event.data[0];
-        _geomagnetic[1] = event.data[1];
-        _geomagnetic[2] = event.data[2];
-        break;
-    }
-    if (_computeRotationMatrix()) {
-      List<double> orientation = _computeOrientation();
-      _azimuth = degrees(orientation[0]);
-      _azimuth = (_azimuth + azimuthFix + 360) % 360;
-      _internalUpdateController.add(_azimuth);
-    }
-  }
-
   /// Checks if the sensors has been started.
   bool _sensorsStarted() {
-    return _rotationSensorStream != null ||
-        (_accelerometerStream != null && _magneticFieldStream != null);
+    return _rotationSensorStream != null;
   }
 
   /// Stops the sensors updates subscribed.
   void _stopSensors() {
-    if (_accelerometerStream != null) {
-      _accelerometerStream.cancel();
-      _accelerometerStream = null;
-    }
-    if (_magneticFieldStream != null) {
-      _magneticFieldStream.cancel();
-      _magneticFieldStream = null;
-    }
     if (_rotationSensorStream != null) {
       _rotationSensorStream.cancel();
       _rotationSensorStream = null;
     }
-  }
-
-  /// Updates the current rotation matrix using the values gathered by the
-  /// accelerometer and magnetic field sensor.
-  ///
-  /// Returns true if the computation was successful and false otherwise.
-  bool _computeRotationMatrix() {
-    double ax = _gravity[0], ay = _gravity[1], az = _gravity[2];
-    double ex = _geomagnetic[0], ey = _geomagnetic[1], ez = _geomagnetic[2];
-    double hx = ey * az - ez * ay;
-    double hy = ez * ax - ex * az;
-    double hz = ex * ay - ey * ax;
-    double normH = sqrt(hx * hx + hy * hy + hz * hz);
-    if (normH < 0.1) return false;
-    double invH = 1.0 / normH;
-    hx *= invH;
-    hy *= invH;
-    hz *= invH;
-    double invA = 1.0 / sqrt(ax * ax + ay * ay + az * az);
-    ax *= invA;
-    ay *= invA;
-    az *= invA;
-    double mx = ay * hz - az * hy;
-    double my = az * hx - ax * hz;
-    double mz = ax * hy - ay * hx;
-    _rotationMatrix = [hx, hy, hz, mx, my, mz, ax, ay, az];
-    return true;
   }
 
   /// Updates the current rotation matrix using the values gathered by the
