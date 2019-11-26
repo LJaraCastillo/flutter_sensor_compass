@@ -1,28 +1,29 @@
 part of flutter_sensor_compass;
 
 class _Compass {
-  static const double _alpha = 0.97;
-  List<double> _gravity = List.filled(3, 0.0);
-  List<double> _geomagnetic = List.filled(3, 0.0);
-  List<double> _rotationMatrix = List();
+  List<double> _rotationMatrix = List.filled(9, 0.0);
   double _azimuth = 0.0;
   double azimuthFix = 0.0;
   final List<_CompassStreamSubscription> _updatesSubscriptions = [];
-  StreamSubscription<SensorEvent> _sensorStream;
+  StreamSubscription<SensorEvent> _rotationSensorStream;
   StreamController<double> _internalUpdateController =
       StreamController.broadcast();
 
-  Stream<double> compassUpdates(Duration delay) {
+  /// Starts the compass updates.
+  Stream<double> compassUpdates(Duration interval, double azimuthFix) {
+    this.azimuthFix = azimuthFix ?? this.azimuthFix;
+    // ignore: close_sinks
     StreamController<double> compassStreamController;
     _CompassStreamSubscription compassStreamSubscription;
+    // ignore: cancel_subscriptions
     StreamSubscription<double> compassSubscription =
         _internalUpdateController.stream.listen((value) {
-      if (delay != null) {
+      if (interval != null) {
         DateTime instant = DateTime.now();
         int difference = instant
             .difference(compassStreamSubscription.lastUpdated)
             .inMicroseconds;
-        if (difference < delay.inMicroseconds) {
+        if (difference < interval.inMicroseconds) {
           return;
         } else {
           compassStreamSubscription.lastUpdated = instant;
@@ -37,93 +38,96 @@ class _Compass {
     _updatesSubscriptions.add(compassStreamSubscription);
     compassStreamController = StreamController<double>.broadcast(
       onListen: () {
-        if (_sensorStream != null) return;
-        _startSensors();
+        if (_sensorStarted()) return;
+        _startSensor();
       },
       onCancel: () {
         compassStreamSubscription.subscription.cancel();
         _updatesSubscriptions.remove(compassStreamSubscription);
-        if (_updatesSubscriptions.isEmpty) _stopSensors();
+        if (_updatesSubscriptions.isEmpty) _stopSensor();
       },
     );
     return compassStreamController.stream;
   }
 
-  static Future<bool> get checkAviability async {
-    bool accelerometer =
-        await SensorManager.isSensorAvailable(Sensors.ACCELEROMETER);
-    bool magneticField =
-        await SensorManager.isSensorAvailable(Sensors.MAGNETIC_FIELD);
-    return accelerometer && magneticField;
+  /// Checks if the rotation sensor is available in the system.
+  static Future<bool> get isCompassAvailable async {
+    return SensorManager().isSensorAvailable(Sensors.ROTATION);
   }
 
-  void _startSensors() {
-    _sensorStream = SensorManager.sensorsUpdates([
-      SensorRequest(Sensors.ACCELEROMETER,
-          refreshDelay: Sensors.SENSOR_DELAY_GAME),
-      SensorRequest(Sensors.MAGNETIC_FIELD,
-          refreshDelay: Sensors.SENSOR_DELAY_GAME),
-    ]).listen((event) {
-      switch (event.sensor) {
-        case Sensors.ACCELEROMETER:
-          _gravity[0] = _alpha * _gravity[0] + (1 - _alpha) * event.data[0];
-          _gravity[1] = _alpha * _gravity[1] + (1 - _alpha) * event.data[1];
-          _gravity[2] = _alpha * _gravity[2] + (1 - _alpha) * event.data[2];
-          break;
-        case Sensors.MAGNETIC_FIELD:
-          _geomagnetic[0] =
-              _alpha * _geomagnetic[0] + (1 - _alpha) * event.data[0];
-          _geomagnetic[1] =
-              _alpha * _geomagnetic[1] + (1 - _alpha) * event.data[1];
-          _geomagnetic[2] =
-              _alpha * _geomagnetic[2] + (1 - _alpha) * event.data[2];
-          break;
-      }
-      if (_computeRotationMatrix()) {
+  /// Determines which sensor is available and starts the updates if possible.
+  void _startSensor() async {
+    bool isAvailable = await isCompassAvailable;
+    if (isAvailable) {
+      _startRotationSensor();
+    }
+  }
+
+  /// Starts the rotation sensor for each platform.
+  void _startRotationSensor() async {
+    final stream = await SensorManager().sensorUpdates(
+      sensorId: Sensors.ROTATION,
+      interval: Sensors.SENSOR_DELAY_UI,
+    );
+    _rotationSensorStream = stream.listen((event) {
+      if (Platform.isAndroid) {
+        _computeRotationMatrixFromVector(event.data);
         List<double> orientation = _computeOrientation();
         _azimuth = degrees(orientation[0]);
         _azimuth = (_azimuth + azimuthFix + 360) % 360;
-        _internalUpdateController.add(_azimuth);
+      } else if (Platform.isIOS) {
+        _azimuth = event.data[0];
       }
+      _internalUpdateController.add(_azimuth);
     });
   }
 
-  void _stopSensors() {
-    if (_sensorStream == null) return;
-    _sensorStream.cancel();
-    _sensorStream = null;
+  /// Checks if the sensors has been started.
+  bool _sensorStarted() {
+    return _rotationSensorStream != null;
   }
 
-  /// Updates the current rotation matrix using the values gattered by the
-  /// accelerometer and magenetic field sensor.
+  /// Stops the sensors updates subscribed.
+  void _stopSensor() {
+    if (_sensorStarted()) {
+      _rotationSensorStream.cancel();
+      _rotationSensorStream = null;
+    }
+  }
+
+  /// Updates the current rotation matrix using the values gathered by the
+  /// rotation vector sensor.
   ///
   /// Returns true if the computation was successful and false otherwise.
-  bool _computeRotationMatrix() {
-    double ax = _gravity[0], ay = _gravity[1], az = _gravity[2];
-    double normsqa = (ax * ax + ay * ay + az * az);
-    double g = 9.81;
-    double freeFallGravitySquared = 0.01 * g * g;
-    if (normsqa < freeFallGravitySquared) return false;
-    double ex = _geomagnetic[0], ey = _geomagnetic[1], ez = _geomagnetic[2];
-    double hx = ey * az - ez * ay;
-    double hy = ez * ax - ex * az;
-    double hz = ex * ay - ey * ax;
-    double normH = sqrt(hx * hx + hy * hy + hz * hz);
-    if (normH < 0.1) return false;
-    double invH = 1.0 / normH;
-    hx *= invH;
-    hy *= invH;
-    hz *= invH;
-    double invA = 1.0 / sqrt(ax * ax + ay * ay + az * az);
-    ax *= invA;
-    ay *= invA;
-    az *= invA;
-    double mx = ay * hz - az * hy;
-    double my = az * hx - ax * hz;
-    double mz = ax * hy - ay * hx;
-    // Fill r matrix
-    _rotationMatrix = [hx, hy, hz, mx, my, mz, ax, ay, az];
-    return true;
+  void _computeRotationMatrixFromVector(List<double> rotationVector) {
+    double q0;
+    double q1 = rotationVector[0];
+    double q2 = rotationVector[1];
+    double q3 = rotationVector[2];
+    if (rotationVector.length == 4) {
+      q0 = rotationVector[3];
+    } else {
+      q0 = 1 - q1 * q1 - q2 * q2 - q3 * q3;
+      q0 = (q0 > 0) ? sqrt(q0) : 0;
+    }
+    double sqQ1 = 2 * q1 * q1;
+    double sqQ2 = 2 * q2 * q2;
+    double sqQ3 = 2 * q3 * q3;
+    double q1Q2 = 2 * q1 * q2;
+    double q3Q0 = 2 * q3 * q0;
+    double q1Q3 = 2 * q1 * q3;
+    double q2Q0 = 2 * q2 * q0;
+    double q2Q3 = 2 * q2 * q3;
+    double q1Q0 = 2 * q1 * q0;
+    _rotationMatrix[0] = 1 - sqQ2 - sqQ3;
+    _rotationMatrix[1] = q1Q2 - q3Q0;
+    _rotationMatrix[2] = q1Q3 + q2Q0;
+    _rotationMatrix[3] = q1Q2 + q3Q0;
+    _rotationMatrix[4] = 1 - sqQ1 - sqQ3;
+    _rotationMatrix[5] = q2Q3 - q1Q0;
+    _rotationMatrix[6] = q1Q3 - q2Q0;
+    _rotationMatrix[7] = q2Q3 + q1Q0;
+    _rotationMatrix[8] = 1 - sqQ1 - sqQ2;
   }
 
   /// Compute the orientation utilizing the data realized by the
@@ -141,8 +145,12 @@ class _Compass {
   }
 }
 
+/// Class that represents a subscription to the stream of compass updates.
 class _CompassStreamSubscription {
+  /// Subscription to the stream of the compass.
   StreamSubscription subscription;
+
+  /// Date of the last update.
   DateTime lastUpdated;
 
   _CompassStreamSubscription(this.subscription) {

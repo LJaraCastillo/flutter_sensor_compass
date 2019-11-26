@@ -1,4 +1,4 @@
-package com.example.fluttersensorcompass
+package cl.ceisufro.fluttersensorcompass
 
 import io.flutter.plugin.common.MethodCall
 import io.flutter.plugin.common.MethodChannel
