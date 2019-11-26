@@ -1,6 +1,6 @@
 name: flutter_sensor_compass
 description: A plugin to get the orientation of the device (in degrees) relative to the magnetic north.
-version: 0.1.0
+version: 0.1.1
 author: Luis Andrés Jara Castillo <luisandres.jaracastillo@gmail.com>
 homepage: https://github.com/LJaraCastillo/flutter_sensor_compass
 
@@ -10,8 +10,9 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
-  flutter_sensors: ^0.1.1
+  flutter_sensors: ^0.1.2
   vector_math: ^2.0.8
+
 # For information on the generic Dart part of this file, see the
 # following page: https://www.dartlang.org/tools/pub/pubspec
 
