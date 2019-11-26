@@ -37,8 +37,9 @@ class _MyAppState extends State<MyApp> {
 
   void _startCompass() {
     if (_compassSubscription != null) return;
-    _compassSubscription =
-        Compass().compassUpdates(interval: Duration(milliseconds: 200)).listen((value) {
+    _compassSubscription = Compass()
+        .compassUpdates(interval: Duration(milliseconds: 200))
+        .listen((value) {
       setState(() {
         _degrees = value;
       });
